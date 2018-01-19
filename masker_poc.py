@@ -102,7 +102,7 @@ def get_big_random_data(args):
     c0y = abs(int(random.gauss(ysize/4, ysize/4)))
     if c0y >= ysize:
         c0y = ysize - 1
-    c1x = abs(int(random.gauss(3 * xsize/2, xsize/4)))
+    c1x = abs(int(random.gauss(3 * xsize/4, xsize/4)))
     if c1x >= xsize:
         c1x = xsize - 1
     c1y = abs(int(random.gauss(3 * ysize/4, ysize/4)))
