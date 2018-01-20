@@ -218,37 +218,40 @@ class Board(object):
         """
         tmpprobs = [[None for x in range(len(area[layer]))] for y in range(len(area[layer][0]))]
 
-        for cell in prob_v :
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            tmpprobs[x][y] = p, None, None
-        for cell in prob_v:
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            l = layer
-            step_prob = p * area[l][x][y]
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if abs(dx) == abs(dy) :  # no diags
-                        continue
-                    nx = x + dx
-                    ny = y + dy
-                    if nx < 0 or\
-                     nx >= self.xsize or\
-                     ny < 0 or\
-                     ny >= self.ysize:
-                        continue
-                    # ok, nx, ny on board
-                    if step_prob > tmpprobs[nx][ny][0]  :
-                        tmpprobs[nx][ny] = step_prob, x, y
-        for cell in prob_v:
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            if tmpprobs[x][y][0] > p :
-                cell.set_prob(tmpprobs[x][y][0],t,tmpprobs[x][y][1],tmpprobs[x][y][2])
+        for n in prob_v:
+            for cell in prob_v[n]:
+                x = cell.x
+                y = cell.y
+                p = cell.prob
+                tmpprobs[x][y] = p, None, None
+        for n in prob_v:
+            for cell in prob_v[n]:
+                x = cell.x
+                y = cell.y
+                p = cell.prob
+                l = layer
+                step_prob = p * area[l][x][y]
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if abs(dx) == abs(dy):  # no diags
+                            continue
+                        nx = x + dx
+                        ny = y + dy
+                        if nx < 0 or\
+                         nx >= self.xsize or\
+                         ny < 0 or\
+                         ny >= self.ysize:
+                            continue
+                        # ok, nx, ny on board
+                        if step_prob > tmpprobs[nx][ny][0]  :
+                            tmpprobs[nx][ny] = step_prob, x, y
+        for n in prob_v:
+            for cell in prob_v[n]:
+                x = cell.x
+                y = cell.y
+                p = cell.prob
+                if tmpprobs[x][y][0] > p :
+                    cell.set_prob(tmpprobs[x][y][0],t,tmpprobs[x][y][1],tmpprobs[x][y][2])
         return prob_v
 
     def report_path(self, x, y, s):
@@ -401,7 +404,7 @@ def layer_probs(wind_cells):
         for x in range(len(wind_cells[r])):
             for y in range(len(wind_cells[r][x])):
                 for p in range(len(probs)-1):
-                    if wind_cells[r][x][y] < probs[p][0] and  wind_cells[r][x][y] > probs[p+1][0] :
+                    if wind_cells[r][x][y] >= probs[p][0] and  wind_cells[r][x][y] < probs[p+1][0] :
                         new_cells[r][x][y] = probs[p][1]
     return new_cells
 
@@ -412,8 +415,9 @@ def prob_solver(cells,cities) :
     end_city = cities[1]
 # setup initial board:
     for x in range(len(cells[0])):
+        prob_values.append([])
         for y in range(len(cells[0][x])):
-           prob_values[x][y] = Cell(x,y,0,0)
+            prob_values[x].append(Cell(x,y,0,0))
 # start walk at first city so automatic start at prob 1
     prob_values[start_city[0]][start_city[1]].set_prob(1.0,0,start_city[0],start_city[1])
     count = 0
@@ -437,36 +441,39 @@ def take_step(prob_v, area, t, level):
     ys = len(area[level][0])
     tmpprobs = [[None for x in range(xs)] for y in range(ys)]
     l = level
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob
-        tmpprobs[x][y] = p, None, None
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob
-        step_prob = p * area[l][x][y]
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if abs(dx) == abs(dy):  # no diags
-                    continue
-                nx = x + dx
-                ny = y + dy
-                if nx < 0 or \
-                        nx >= xs or \
-                        ny < 0 or \
-                        ny >= ys:
-                    continue
-                # ok, nx, ny on board
-                if step_prob > tmpprobs[nx][ny][0]:
-                    tmpprobs[nx][ny] = step_prob, x, y
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob
-        if tmpprobs[x][y][0] > p:
-            cell.set_prob(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.prob
+            tmpprobs[x][y] = p, None, None
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.prob
+            step_prob = p * area[l][x][y]
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if abs(dx) == abs(dy):  # no diags
+                        continue
+                    nx = x + dx
+                    ny = y + dy
+                    if nx < 0 or \
+                            nx >= xs or \
+                            ny < 0 or \
+                            ny >= ys:
+                        continue
+                    # ok, nx, ny on board
+                    if step_prob > tmpprobs[nx][ny][0]:
+                        tmpprobs[nx][ny] = step_prob, x, y
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.prob
+            if tmpprobs[x][y][0] > p:
+               cell.set_prob(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
     return prob_v
 
 def do_transfer_step(prob_v, area, t, level):
@@ -477,35 +484,36 @@ def do_transfer_step(prob_v, area, t, level):
     ys = len(area[level][0])
     tmpprobs = [[None for x in range(xs)] for y in range(ys)]
     l = level - 1
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob * area[l][x][y]
-        tmpprobs[x][y] = p, None, None
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob * area[l][x][y]
-        step_prob = p
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if abs(dx) == abs(dy):  # no diags
-                    continue
-                nx = x + dx
-                ny = y + dy
-                if nx < 0 or \
-                        nx >= xs or \
-                        ny < 0 or \
-                        ny >= ys:
-                    continue
-                # ok, nx, ny on board
-                if step_prob > tmpprobs[nx][ny][0]:
-                    tmpprobs[nx][ny] = step_prob, x, y
-    for cell in prob_v:
-        x = cell.x
-        y = cell.y
-        p = cell.prob
-        if tmpprobs[x][y][0] > p:
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.prob * area[l][x][y]
+            tmpprobs[x][y] = p, None, None
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.prob * area[l][x][y]
+            step_prob = p
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if abs(dx) == abs(dy):  # no diags
+                        continue
+                    nx = x + dx
+                    ny = y + dy
+                    if nx < 0 or \
+                            nx >= xs or \
+                            ny < 0 or \
+                            ny >= ys:
+                        continue
+                    # ok, nx, ny on board
+                    if step_prob > tmpprobs[nx][ny][0]:
+                        tmpprobs[nx][ny] = step_prob, x, y
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
             cell.set_prob(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
     return prob_v
 
@@ -537,6 +545,7 @@ def main():
     board.display()
     # reset layers to probabilities
     prob_board = layer_probs(layers)
+    print(prob_board[0])
     prob_paths = prob_solver(prob_board, cities)
     print (prob_paths)
 
