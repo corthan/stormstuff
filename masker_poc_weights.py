@@ -117,27 +117,38 @@ steps_per_layer = 4
 class Cell(object):
 
     def __init__(self, x, y, t, prob):
-        self.prob = prob
+        self.conf_in = prob
+        self.conf_out = prob
         self.parent = [None,None]
         self.time = t
         self.x = x
         self.y = y
+        self.this_wind = 0.0
+        self.conf_out = self.conf_in * self.this_wind
         self.history = []
-        self.history.append([self.prob, self.time, self.parent])
+        self.history.append([self.conf_out, self.time, self.parent])
 
 
 #  def __str__(self):
 #       return "Value = {}, parent = {}, steps = {}".format(self.value, self.parent, self.steps)
 
-    def get_prob(self):
-        return self.prob
+    def get_prob_out(self):
+        return self.conf_out
 
-    def set_prob(self, p, t, last_x, last_y):
-        self.prob = p
+    def reset_prob_out(self):
+        self.conf_out = self.conf_in * self.this_wind
+
+    def set_prob_in(self, p_in, t, last_x, last_y):
+        self.conf_in = p_in
+        self.conf_out = self.conf_in * self.this_wind
         self.time = t
         self.parent = last_x, last_y
-        h = [self.prob, self.time, self.parent]
+        h = [self.conf_out, self.time, self.parent]
         self.history.append(h)
+
+    def set_wind_confidence(self, layers,l):
+        self.this_wind = layers[l][self.x][self.y]
+
     """
 #   def has_value(self, v):
 #      return self.value == v
@@ -243,7 +254,7 @@ class Board(object):
                          ny >= self.ysize:
                             continue
                         # ok, nx, ny on board
-                        if step_prob > tmpprobs[nx][ny][0]  :
+                        if step_prob > tmpprobs[nx][ny][0]:
                             tmpprobs[nx][ny] = step_prob, x, y
         for n in prob_v:
             for cell in prob_v[n]:
@@ -251,7 +262,7 @@ class Board(object):
                 y = cell.y
                 p = cell.prob
                 if tmpprobs[x][y][0] > p :
-                    cell.set_prob(tmpprobs[x][y][0],t,tmpprobs[x][y][1],tmpprobs[x][y][2])
+                    cell.set_prob_in(tmpprobs[x][y][0], t, None, None)
         return prob_v
 
     def report_path(self, x, y, s):
@@ -414,108 +425,150 @@ def prob_solver(cells,cities) :
     start_city = cities[0]
     end_city = cities[1]
 # setup initial board:
-    for x in range(len(cells[0])):
+    xsize = len(cells[0])
+    ysize = len(cells[0][0])
+    for x in range(xsize):
         prob_values.append([])
-        for y in range(len(cells[0][x])):
+        for y in range(ysize):
             prob_values[x].append(Cell(x,y,0,0))
-# start walk at first city so automatic start at prob 1
-    prob_values[start_city[0]][start_city[1]].set_prob(1.0,0,start_city[0],start_city[1])
+            prob_values[x][y].set_wind_confidence(cells,0)
+# start walk at first city so automatic input confidence at 1
+    prob_values[start_city[0]][start_city[1]].set_prob_in(1.0,0,start_city[0],start_city[1])
     count = 0
     level = 0
     for t in range(steps_per_layer * len(cells)):
         count += 1
-        if count == 4:
-            level +=1
-            prob_values = do_transfer_step(prob_values,cells,t,level)
+        if count == steps_per_layer:
+            prob_values = take_step(prob_values, t, xsize, ysize)
+            level += 1
+            if level <= len(cells):
+                prob_values = do_transfer(prob_values, t, cells, level)
+            count = 0
         else :
-            prob_values = take_step(prob_values,cells,t,level)
+            prob_values = take_step(prob_values, t, xsize, ysize)
     history = prob_values[end_city[0]][end_city[1]].get_history()
-    best_value = prob_values[end_city[0]][end_city[1]].get_prob()
-    return best_value, history
+    path = find_path(prob_values, end_city)
 
-def take_step(prob_v, area, t, level):
+    return history, path
+
+
+def take_step(prob_v, t, xsize, ysize):
     """
     Take a step from x, y
     """
-    xs = len(area[level])
-    ys = len(area[level][0])
+    xs = xsize
+    ys = ysize
     tmpprobs = [[None for x in range(xs)] for y in range(ys)]
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.conf_in
+            tmpprobs[x][y] = p, None, None
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            step_prob = cell.conf_out
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if abs(dx) == abs(dy):  # no diags
+                        continue
+                    nx = x + dx
+                    ny = y + dy
+                    if nx < 0 or \
+                            nx >= xs or \
+                            ny < 0 or \
+                            ny >= ys:
+                        continue
+                    # ok, nx, ny on board
+                    if step_prob > tmpprobs[nx][ny][0]:
+                        tmpprobs[nx][ny] = step_prob, x, y
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            p = cell.conf_in
+            if tmpprobs[x][y][0] > p:
+               cell.set_prob_in(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
+    return prob_v
+
+
+def do_transfer(prob_v, t, area, level):
+    """
+    reset wind values
+    reset conf_in for cells 'at home'
+    reset conf_out for all cells
+    """
     l = level
     for n in prob_v:
         for cell in n:
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            tmpprobs[x][y] = p, None, None
-    for n in prob_v:
-        for cell in n:
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            step_prob = p * area[l][x][y]
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if abs(dx) == abs(dy):  # no diags
-                        continue
-                    nx = x + dx
-                    ny = y + dy
-                    if nx < 0 or \
-                            nx >= xs or \
-                            ny < 0 or \
-                            ny >= ys:
-                        continue
-                    # ok, nx, ny on board
-                    if step_prob > tmpprobs[nx][ny][0]:
-                        tmpprobs[nx][ny] = step_prob, x, y
-    for n in prob_v:
-        for cell in n:
-            x = cell.x
-            y = cell.y
-            p = cell.prob
-            if tmpprobs[x][y][0] > p:
-               cell.set_prob(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
+            prob_out = cell.get_prob_out()
+            if l < len(area):
+                cell.set_wind_confidence(area, l)
+            home_t = cell.get_time()
+            if home_t < t:
+                cell.set_prob_in(prob_out, t, cell.x, cell.y)
+            cell.reset_prob_out()
     return prob_v
 
-def do_transfer_step(prob_v, area, t, level):
-    """
-    Take a step from x, y
-    """
-    xs = len(area[level])
-    ys = len(area[level][0])
-    tmpprobs = [[None for x in range(xs)] for y in range(ys)]
-    l = level - 1
-    for n in prob_v:
-        for cell in n:
-            x = cell.x
-            y = cell.y
-            p = cell.prob * area[l][x][y]
-            tmpprobs[x][y] = p, None, None
-    for n in prob_v:
-        for cell in n:
-            x = cell.x
-            y = cell.y
-            p = cell.prob * area[l][x][y]
-            step_prob = p
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if abs(dx) == abs(dy):  # no diags
-                        continue
-                    nx = x + dx
-                    ny = y + dy
-                    if nx < 0 or \
-                            nx >= xs or \
-                            ny < 0 or \
-                            ny >= ys:
-                        continue
-                    # ok, nx, ny on board
-                    if step_prob > tmpprobs[nx][ny][0]:
-                        tmpprobs[nx][ny] = step_prob, x, y
-    for n in prob_v:
-        for cell in n:
-            x = cell.x
-            y = cell.y
-            cell.set_prob(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
-    return prob_v
+
+def find_path(prob_v, end_city):
+    history = prob_v[end_city[0]][end_city[1]].get_history()
+# get best 3 values and times
+    first = []
+    first.append([0.0, 0, None, None])
+    second = []
+    second.append([0.0, 0, None, None])
+    third = []
+    third.append([0.0, 0, None, None])
+    best = [first, second, third]
+    for item in history:
+        this_one = item[0]
+        if this_one > first[0][0]:
+            third[0] = second[0]
+            second[0] = first[0]
+            first[0] = item
+    print (first, second, third)
+    this_back_track = first[0]
+    next_back_track = [0,0,None]
+    for n in range(first[0][1]):
+        t = first[0][1] - n
+        hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
+        for z in range(len(hist_last_step) - 1):
+            this_ht = hist_last_step[z][1]
+            next_ht = hist_last_step[z+1][1]
+            if t > this_ht and t <= next_ht:
+                next_back_track = hist_last_step[z]
+        if t > next_back_track[1]:
+            first.append(next_back_track)
+        else:
+            this_back_track = next_back_track
+    for n in range(second[0][1]):
+        t = second[0][1] - n
+        hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
+        for z in range(len(hist_last_step) - 1):
+            this_ht = hist_last_step[z][1]
+            next_ht = hist_last_step[z+1][1]
+            if t > this_ht and t <= next_ht:
+                next_back_track = hist_last_step[z]
+    if t > next_back_track[1]:
+        second.append(this_back_track)
+    else:
+        this_back_track = next_back_track
+    for n in range(third[0][1]):
+        t = third[0][1] - n
+        hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
+        for z in range(len(hist_last_step) - 1):
+            this_ht = hist_last_step[z][1]
+            next_ht = hist_last_step[z+1][1]
+            if t > this_ht and t <= next_ht:
+                next_back_track = hist_last_step[z]
+    if t > next_back_track[1]:
+        third.append(this_back_track)
+    else:
+        this_back_track = next_back_track
+    return best
 
           
 def main():
