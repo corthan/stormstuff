@@ -111,7 +111,7 @@ def get_big_random_data(args):
     return cells, cities, xsize, ysize
 
     
-
+penalty = 40
 steps_per_layer = 4
 
 class Cell(object):
@@ -515,7 +515,7 @@ def do_transfer(prob_v, t, area, level):
 
 def find_path(prob_v, end_city):
     history = prob_v[end_city[0]][end_city[1]].get_history()
-# get best 3 values and times
+# get best values and times INCLUDING PENALTIY  - formula = t*conf + penalty * (1 - penalty)
     first = []
     first.append([0.0, 0, None, None])
     second = []
@@ -524,50 +524,37 @@ def find_path(prob_v, end_city):
     third.append([0.0, 0, None, None])
     best = [first, second, third]
     for item in history:
-        this_one = item[0]
-        if this_one > first[0][0]:
+        this_weighted_time = item[0] * item[1] + penalty * (1 - item[0])
+        first_weighted_time = first[0][0] * first[0][1] + penalty * (1 - first[0][0])
+        second_weighted_time = second[0][0] * second[0][1] + penalty * (1 - second[0][0])
+        third_weighted_time = third[0][0] * third[0][1] + penalty * (1 - third[0][0])
+        if this_weighted_time < first_weighted_time:
             third[0] = second[0]
             second[0] = first[0]
             first[0] = item
-    print (first, second, third)
+        else:
+            if this_weighted_time < second_weighted_time:
+                third[0] = second[0]
+                second[0] = item
+            else:
+                if this_weighted_time < third_weighted_time:
+                    third[0] = item
+    print(first_weighted_time, second_weighted_time, third_weighted_time)
+    print(first, second, third)
     this_back_track = first[0]
     next_back_track = [0,0,None]
-    for n in range(first[0][1]):
-        t = first[0][1] - n
+    t = first[0][1]
+    while t > 0:
         hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
         for z in range(len(hist_last_step) - 1):
             this_ht = hist_last_step[z][1]
             next_ht = hist_last_step[z+1][1]
             if t > this_ht and t <= next_ht:
                 next_back_track = hist_last_step[z]
-        if t > next_back_track[1]:
-            first.append(next_back_track)
-        else:
-            this_back_track = next_back_track
-    for n in range(second[0][1]):
-        t = second[0][1] - n
-        hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
-        for z in range(len(hist_last_step) - 1):
-            this_ht = hist_last_step[z][1]
-            next_ht = hist_last_step[z+1][1]
-            if t > this_ht and t <= next_ht:
-                next_back_track = hist_last_step[z]
-    if t > next_back_track[1]:
-        second.append(this_back_track)
-    else:
-        this_back_track = next_back_track
-    for n in range(third[0][1]):
-        t = third[0][1] - n
-        hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
-        for z in range(len(hist_last_step) - 1):
-            this_ht = hist_last_step[z][1]
-            next_ht = hist_last_step[z+1][1]
-            if t > this_ht and t <= next_ht:
-                next_back_track = hist_last_step[z]
-    if t > next_back_track[1]:
-        third.append(this_back_track)
-    else:
-        this_back_track = next_back_track
+                first.append(next_back_track)
+                this_back_track = next_back_track
+                t = this_ht
+
     return best
 
           
