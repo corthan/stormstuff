@@ -111,15 +111,18 @@ def get_big_random_data(args):
     return cells, cities, xsize, ysize
 
     
-penalty = 40
-steps_per_layer = 4
+penalty = 720
+steps_per_layer = 30
+
 
 class Cell(object):
 
     def __init__(self, x, y, t, prob):
+        self.started = False
+        self.not_finished = True
         self.conf_in = prob
         self.conf_out = prob
-        self.parent = [None,None]
+        self.parent = [None, None]
         self.time = t
         self.x = x
         self.y = y
@@ -127,10 +130,6 @@ class Cell(object):
         self.conf_out = self.conf_in * self.this_wind
         self.history = []
         self.history.append([self.conf_out, self.time, self.parent])
-
-
-#  def __str__(self):
-#       return "Value = {}, parent = {}, steps = {}".format(self.value, self.parent, self.steps)
 
     def get_prob_out(self):
         return self.conf_out
@@ -146,7 +145,7 @@ class Cell(object):
         h = [self.conf_out, self.time, self.parent]
         self.history.append(h)
 
-    def set_wind_confidence(self, layers,l):
+    def set_wind_confidence(self, layers, l):
         self.this_wind = layers[l][self.x][self.y]
 
     """
@@ -170,8 +169,6 @@ class Cell(object):
 
     def get_history(self):
         return self.history
-
-
 
 
 class Board(object):
@@ -392,25 +389,27 @@ def layer_probs(wind_cells):
     for every wind velocity, set probability of surviving via lookup table
     """
     new_cells = wind_cells
-    probs = [[0.0,1.0],
-             [7.0,1.0],
-             [7.5,0.99],
-             [8.0,0.95],
-             [8.5,0.88],
-             [9.0,0.80],
-             [9.5,0.70],
-             [10.0,0.50],
-             [10.5,0.30],
-             [11.0,0.20],
-             [11.5,0.12],
-             [12.0,0.10],
-             [12.5,0.08],
-             [13.0,0.06],
-             [13.5,0.04],
-             [14.0,0.02],
-             [14.5,0.01],
-             [15.0,0.0],
-             [1000,0.0]]
+    probs = [[0.0, 1.0],
+             [7.0, 1.0],
+             [7.5, 0.99],
+             [8.0, 0.98],
+             [8.5, 0.97],
+             [9.0, 0.96],
+             [9.5, 0.95],
+             [10.0, 0.94],
+             [10.5, 0.93],
+             [11.0, 0.92],
+             [11.5, 0.91],
+             [12.0, 0.90],
+             [12.5, 0.88],
+             [13.0, 0.86],
+             [13.5, 0.84],
+             [14.0, 0.80],
+             [14.5, 0.70],
+             [15.0, 0.70],
+             [17.0, 0.70],
+             [25.0, 0.75],
+             [1000, 0.9]]
     for r in range(len(wind_cells)):
         for x in range(len(wind_cells[r])):
             for y in range(len(wind_cells[r][x])):
@@ -420,7 +419,7 @@ def layer_probs(wind_cells):
     return new_cells
 
 
-def prob_solver(cells,cities) :
+def prob_solver(cells, cities):
     prob_values = []
     start_city = cities[0]
     end_city = cities[1]
@@ -430,26 +429,48 @@ def prob_solver(cells,cities) :
     for x in range(xsize):
         prob_values.append([])
         for y in range(ysize):
-            prob_values[x].append(Cell(x,y,0,0))
-            prob_values[x][y].set_wind_confidence(cells,0)
+            prob_values[x].append(Cell(x, y, 0, 0))
+            prob_values[x][y].set_wind_confidence(cells, 0)
 # start walk at first city so automatic input confidence at 1
-    prob_values[start_city[0]][start_city[1]].set_prob_in(1.0,0,start_city[0],start_city[1])
+    prob_values[start_city[0]][start_city[1]].set_prob_in(1.0, 0, start_city[0], start_city[1])
     count = 0
     level = 0
-    for t in range(steps_per_layer * len(cells)):
+    total_steps = steps_per_layer * len(cells)
+    for t in range(total_steps):
+        switch_on(prob_values, t, cities, total_steps)
         count += 1
         if count == steps_per_layer:
             prob_values = take_step(prob_values, t, xsize, ysize)
             level += 1
             if level <= len(cells):
                 prob_values = do_transfer(prob_values, t, cells, level)
+                prob_values[start_city[0]][start_city[1]].set_prob_in(1.0, 0, start_city[0], start_city[1])
             count = 0
-        else :
+        else:
             prob_values = take_step(prob_values, t, xsize, ysize)
     history = prob_values[end_city[0]][end_city[1]].get_history()
     path = find_path(prob_values, end_city)
+    print (history)
+    return path
 
-    return history, path
+
+def switch_on(prob_v, t, cities, total_time):
+    start_city_x = cities[0][0]
+    start_city_y = cities[0][1]
+    end_city_x = cities[1][0]
+    end_city_y = cities[1][1]
+    for n in prob_v:
+        for cell in n:
+            x = cell.x
+            y = cell.y
+            steps_from_start = abs(x - start_city_x) + abs(y - start_city_y)
+            if t == steps_from_start :
+                cell.started = True
+                """
+            steps_from_end =  total_time - abs(x - end_city_x) - abs(y - end_city_y)
+            if t == steps_from_end :
+                cell.not_finished = False
+                """
 
 
 def take_step(prob_v, t, xsize, ysize):
@@ -467,30 +488,31 @@ def take_step(prob_v, t, xsize, ysize):
             tmpprobs[x][y] = p, None, None
     for n in prob_v:
         for cell in n:
-            x = cell.x
-            y = cell.y
-            step_prob = cell.conf_out
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if abs(dx) == abs(dy):  # no diags
-                        continue
-                    nx = x + dx
-                    ny = y + dy
-                    if nx < 0 or \
-                            nx >= xs or \
-                            ny < 0 or \
-                            ny >= ys:
-                        continue
-                    # ok, nx, ny on board
-                    if step_prob > tmpprobs[nx][ny][0]:
-                        tmpprobs[nx][ny] = step_prob, x, y
+            if cell.started and cell.not_finished:
+                x = cell.x
+                y = cell.y
+                step_prob = cell.conf_out
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if abs(dx) == abs(dy):  # no diags
+                            continue
+                        nx = x + dx
+                        ny = y + dy
+                        if nx < 0 or \
+                                nx >= xs or \
+                                ny < 0 or \
+                                ny >= ys:
+                            continue
+                        # ok, nx, ny on board
+                        if step_prob > tmpprobs[nx][ny][0]:
+                            tmpprobs[nx][ny] = step_prob, x, y
     for n in prob_v:
         for cell in n:
             x = cell.x
             y = cell.y
             p = cell.conf_in
             if tmpprobs[x][y][0] > p:
-               cell.set_prob_in(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
+                cell.set_prob_in(tmpprobs[x][y][0], t, tmpprobs[x][y][1], tmpprobs[x][y][2])
     return prob_v
 
 
@@ -507,9 +529,10 @@ def do_transfer(prob_v, t, area, level):
             if l < len(area):
                 cell.set_wind_confidence(area, l)
             home_t = cell.get_time()
-            if home_t < t:
-                cell.set_prob_in(prob_out, t, cell.x, cell.y)
-            cell.reset_prob_out()
+            if cell.started and cell.not_finished:
+                if home_t < t:
+                    cell.set_prob_in(prob_out, t, cell.x, cell.y)
+                cell.reset_prob_out()
     return prob_v
 
 
@@ -522,7 +545,6 @@ def find_path(prob_v, end_city):
     second.append([0.0, 0, None, None])
     third = []
     third.append([0.0, 0, None, None])
-    best = [first, second, third]
     for item in history:
         this_weighted_time = item[0] * item[1] + penalty * (1 - item[0])
         first_weighted_time = first[0][0] * first[0][1] + penalty * (1 - first[0][0])
@@ -542,7 +564,6 @@ def find_path(prob_v, end_city):
     print(first_weighted_time, second_weighted_time, third_weighted_time)
     print(first, second, third)
     this_back_track = first[0]
-    next_back_track = [0,0,None]
     t = first[0][1]
     while t > 0:
         hist_last_step = prob_v[this_back_track[2][0]][this_back_track[2][1]].get_history()
@@ -555,7 +576,41 @@ def find_path(prob_v, end_city):
                 this_back_track = next_back_track
                 t = this_ht
 
-    return best
+    return first
+
+
+def out_put_file(best_path, end_city):
+    length = len(best_path)
+    outputfile = []
+    this_step_time = 0
+    last_step_time = 0
+    # put in start point
+    output_list = [3, 0, best_path[-1][2]]
+    outputfile.append(output_list)
+    for inst in range(length):
+        now = length - 1 - inst
+        this_step_time = best_path[now][1]
+        this_step_xy = best_path[now][2]
+        for n in range(this_step_time - last_step_time):
+            actual_step = last_step_time + n + 1
+            actual_minutes = actual_step * 2  # two minutes per step
+            hours_from_start = int(actual_minutes / 60)
+            output_minutes = actual_minutes - (hours_from_start * 60)
+            output_hours = 3 + hours_from_start
+            output_list = [output_hours, output_minutes, this_step_xy]
+            outputfile.append(output_list)
+        last_step_time = this_step_time
+    # now add city position
+    actual_step = this_step_time + 1
+    actual_minutes = actual_step * 2  # two miniutes per step
+    hours_from_start = int(actual_minutes / 60)
+    output_minutes = actual_minutes - (hours_from_start * 60)
+    output_hours = 3 + hours_from_start
+    output_list = [output_hours, output_minutes, end_city]
+    outputfile.append(output_list)
+
+    return outputfile
+
 
           
 def main():
@@ -588,6 +643,8 @@ def main():
     print(prob_board[0])
     prob_paths = prob_solver(prob_board, cities)
     print (prob_paths)
+    out_put = out_put_file(prob_paths, cities[1])
+    print (out_put)
 
 
 if __name__ == '__main__':
