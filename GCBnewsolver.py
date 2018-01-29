@@ -115,7 +115,7 @@ def layer_probs(wind_cells,calc_risk):
                 for p in range(len(probs)-1):
                     if wind_cells[r][x][y] >= probs[p][0] and  wind_cells[r][x][y] < probs[p+1][0] :
                         new_cells[r][x][y] = probs[p][1] + \
-                        (abs(probs[p+1][1] - probs[p][1]) * wind_cells[r][x][y] / abs(probs[p+1][0] - probs[p][0])) - \
+                        (abs(probs[p+1][1] - probs[p][1]) * abs(wind_cells[r][x][y] - probs[p][0]) / abs(probs[p+1][0] - probs[p][0])) - \
                         (abs(probs[p+1][1] - probs[p][1]) / 2)
     return new_cells
 
@@ -254,7 +254,7 @@ def do_transfer(prob_v, t, area, level):
     take_step(prob_v, t, len(prob_v), len(prob_v[0]))
     for n in prob_v:
         for cell in n:
-            if l < len(area):
+            if l <= len(area):
                 cell.set_wind_confidence(area, l)
                 cell.reset_prob_out()
     return prob_v
