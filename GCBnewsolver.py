@@ -141,7 +141,6 @@ def prob_solver(cells, cities):
         switch_on(prob_values, t, cities, total_steps)
         count += 1
         if count == steps_per_layer:
-            prob_values = take_step(prob_values, t, xsize, ysize)
             level += 1
             print("entering next hour", level)
             if level <= len(cells):
@@ -249,12 +248,14 @@ def do_transfer(prob_v, t, area, level):
     for n in prob_v:
         for cell in n:
             prob_out = cell.get_prob_out()
+            if cell.started and cell.not_finished:
+                cell.set_prob_in(prob_out, t, cell.x, cell.y)
+                cell.conf_out = cell.conf_in
+    take_step(prob_v, t, len(prob_v), len(prob_v[0]))
+    for n in prob_v:
+        for cell in n:
             if l < len(area):
                 cell.set_wind_confidence(area, l)
-            home_t = cell.get_time()
-            if cell.started and cell.not_finished:
-                if home_t < t:
-                    cell.set_prob_in(prob_out, t, cell.x, cell.y)
                 cell.reset_prob_out()
     return prob_v
 
