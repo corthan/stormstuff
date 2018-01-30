@@ -95,16 +95,18 @@ def layer_probs(wind_cells,calc_risk):
              [1000, 0.9]]
     """
     probs = []
-    wind_value = 0.0
+    this_conf = (0.0, 1.0)
+    probs.append(this_conf)
+    wind_value = 0.25
     for risk in calc_risk:
         conf = 1.0 - risk
-        # cut off at wind value 25
+        # cut off at wind value 25 BUT leave a small possibility of getting through
         if wind_value > 25.0:
-            conf = 0.0
+            conf = 0.02
         this_conf = (wind_value, conf)
         probs.append(this_conf)
         wind_value += 0.5
-    # add final value at wind value 1000
+    # add final value at wind value 1000 -> all values above 30.25 at 0
     this_conf = (1000.0, 0.0)
     probs.append(this_conf)
     # calc new celle values with confidence levels instead of wind values
@@ -115,8 +117,7 @@ def layer_probs(wind_cells,calc_risk):
                 for p in range(len(probs)-1):
                     if wind_cells[r][x][y] >= probs[p][0] and  wind_cells[r][x][y] < probs[p+1][0] :
                         new_cells[r][x][y] = probs[p][1] + \
-                        (abs(probs[p+1][1] - probs[p][1]) * abs(wind_cells[r][x][y] - probs[p][0]) / abs(probs[p+1][0] - probs[p][0])) - \
-                        (abs(probs[p+1][1] - probs[p][1]) / 2)
+                        (abs(probs[p+1][1] - probs[p][1]) * abs(wind_cells[r][x][y] - probs[p][0]) / abs(probs[p+1][0] - probs[p][0]))
     return new_cells
 
 
@@ -124,7 +125,7 @@ def prob_solver(cells, cities):
     prob_values = []
     start_city = cities[0]
     steps_per_layer = STEPS_PER_HOUR
-# setup initial board:
+# setup initial board: 
     xsize = len(cells[0])
     ysize = len(cells[0][0])
     for x in range(xsize):
@@ -249,14 +250,16 @@ def do_transfer(prob_v, t, area, level):
         for cell in n:
             prob_out = cell.get_prob_out()
             if cell.started and cell.not_finished:
-                cell.set_prob_in(prob_out, t, cell.x, cell.y)
-                cell.conf_out = cell.conf_in
+                # cell.set_prob_in(prob_out, t, cell.x, cell.y) ///// uses too much memory
+                # cell.conf_out = cell.conf_in
+                cell.conf_in = prob_out
     take_step(prob_v, t, len(prob_v), len(prob_v[0]))
     for n in prob_v:
         for cell in n:
-            if l <= len(area):
-                cell.set_wind_confidence(area, l)
-                cell.reset_prob_out()
+            if l < len(area):
+                if cell.started and cell.not_finished:
+                    cell.set_wind_confidence(area, l)
+                    cell.reset_prob_out()
     return prob_v
 
 
@@ -296,7 +299,7 @@ def find_path(prob_v, end_city):
                 first[0] = item
     print(first_weighted_time, second_weighted_time, third_weighted_time)
     # score.update_score(first_weighted_time)
-    print(first, second, third)
+    # print(first, second, third)
     this_back_track = first[0]
     t = first[0][1]
     while t > 0:
