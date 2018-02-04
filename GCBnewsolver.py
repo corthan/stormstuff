@@ -125,7 +125,7 @@ def prob_solver(cells, cities):
     prob_values = []
     start_city = cities[0]
     steps_per_layer = STEPS_PER_HOUR
-# setup initial board: 
+# setup initial board:
     xsize = len(cells[0])
     ysize = len(cells[0][0])
     for x in range(xsize):
@@ -155,14 +155,16 @@ def prob_solver(cells, cities):
             prob_values = take_step(prob_values, t, xsize, ysize)
     # now retrace paths
     all_paths = []
+    score = 0
     for cit_no in range(len(cities)):
         if cit_no > 0:
             end_city = cities[cit_no]
             history = prob_values[end_city[0]][end_city[1]].get_history()
             path = find_path(prob_values, end_city)
-            all_paths.append(path)
+            all_paths.append(path[0])
+            score += path[1]
             print(history)
-    return all_paths
+    return all_paths, score
 
 
 def switch_on(prob_v, t, cities, total_time):
@@ -272,12 +274,12 @@ def find_path(prob_v, end_city):
     second.append([0.0, 0, None, None])
     third = []
     third.append([0.0, 0, None, None])
-    first_weighted_time = penalty
+    first_weighted_time = 2 * penalty
     second_weighted_time = penalty
     third_weighted_time = penalty
     for item in history:
-        if item[0] * item[1] > 0.0000000001 or first_weighted_time != penalty:
-            this_weighted_time = item[0] * item[1] + penalty * (1 - item[0])
+        if item[3] != None:
+            this_weighted_time = item[0] * item[1] + (penalty * (1 - item[0]))
             first_weighted_time = first[0][0] * first[0][1] + penalty * (1 - first[0][0])
             second_weighted_time = second[0][0] * second[0][1] + penalty * (1 - second[0][0])
             third_weighted_time = third[0][0] * third[0][1] + penalty * (1 - third[0][0])
@@ -313,7 +315,7 @@ def find_path(prob_v, end_city):
                 this_back_track = next_back_track
                 t = this_ht
 
-    return first
+    return first, first_weighted_time
 
 
 def out_put_file(best_path, end_city):
@@ -506,7 +508,7 @@ def main():
     city_number = 1
     total_out = []
     with open(args.output, "w") as f:
-        for path in prob_paths:
+        for path in prob_paths[0]:
             print("treating city", city_number)
             out_put = out_put_file(path, cities[city_number])
             print(out_put)
@@ -521,7 +523,7 @@ def main():
                     f.write(line)
             city_number += 1
             total_out.append(out_put)
-    # print(total_out)
+    print(prob_paths[1])
     # print(day)
 
 
