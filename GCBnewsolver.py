@@ -278,7 +278,7 @@ def find_path(prob_v, end_city):
     second_weighted_time = penalty
     third_weighted_time = penalty
     for item in history:
-        if item[3] != None:
+        if item[2] != None:
             this_weighted_time = item[0] * item[1] + (penalty * (1 - item[0]))
             first_weighted_time = first[0][0] * first[0][1] + penalty * (1 - first[0][0])
             second_weighted_time = second[0][0] * second[0][1] + penalty * (1 - second[0][0])
